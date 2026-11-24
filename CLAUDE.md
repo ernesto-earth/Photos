@@ -14,7 +14,8 @@ Deshalb: Webfassungen nie mit Metadaten (GPS) veröffentlichen – `seite-pruefe
   Dateiname, Alben nach Jahr (neueste zuerst), Ordner ohne Jahr am Ende.
 - Titel aus dem Ordnernamen: `2025 Anja` → „Anja“, 2025; `2026 11` → „November“, 2026; `sonst` → „Sonstiges“.
 - **Originale (`Bilder/`) nie ins Repo** – nur die Webfassungen unter `seite/alben/` (erzeugt, nicht von Hand ändern).
-- Oberfläche: `seite/index.html`, `seite/app.js`, `seite/style.css` – statisch, ohne Build, ohne Bibliotheken.
+- Oberfläche: `seite/index.html`, `seite/app.js`, `seite/style.css` – statisch, ohne Build, ohne Bibliotheken; Stil wie die
+  anderen heger.earth-Seiten (dunkle Kopfleiste mit Cockpit-Knopf, Schriftzug FAMILIEN ALBUM, Barlow Condensed in `seite/fonts/`).
 
 ## Git, Vorprod und Prod (E-035, wie im Chief of Staff)
 
