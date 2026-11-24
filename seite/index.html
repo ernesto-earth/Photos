@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Familienalbum</title>
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="kopf">
+  <a class="marke" href="#/">Familienalbum</a>
+  <span class="unterzeile" id="unterzeile"></span>
+</header>
+<main id="inhalt" aria-live="polite"></main>
+
+<div class="leuchtkasten" id="leuchtkasten" hidden role="dialog" aria-modal="true" aria-label="Foto">
+  <img id="lk-bild" alt="">
+  <button class="lk-knopf lk-zu" id="lk-zu" aria-label="Schließen (Esc)">×</button>
+  <button class="lk-knopf lk-zurueck" id="lk-zurueck" aria-label="Vorheriges Foto">‹</button>
+  <button class="lk-knopf lk-vor" id="lk-vor" aria-label="Nächstes Foto">›</button>
+  <div class="lk-leiste">
+    <span id="lk-zaehler"></span>
+    <a id="lk-laden" download>Herunterladen</a>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

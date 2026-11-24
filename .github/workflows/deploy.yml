@@ -1,0 +1,105 @@
+# Lädt die Fotoseite aus seite/ nach heger.earth/photos hoch (öffentlich, ohne Passwort – Entscheidung Ernesto 24.11.2026).
+# E-035: Push auf main → Vorprod heger.earth/vorprod/photos/, Push auf prod → heger.earth/photos/.
+# Die Webfassungen in seite/alben/ erzeugt bilder-aufbereiten.py am Mac; hier wird nur geprüft und hochgeladen.
+#
+# Benötigte Repository-Secrets (Settings → Secrets and variables → Actions), wie in den anderen Projekten:
+#   FTP_SERVER, FTP_USERNAME, FTP_PASSWORD
+# Optionale Repository-Variablen: FTP_PORT (Standard 21), FTP_WEBROOT (Standard "www/")
+#
+# Hochgeladen bzw. überschrieben wird nur www/[vorprod/]photos/. Gelöscht wird am Server nie etwas.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main, prod]
+    paths: ["seite/**", ".github/workflows/deploy.yml", "deploy-pruefen.mjs", "seite-pruefen.mjs"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  SITE: photos
+  PREFIX: ${{ github.ref_name != 'prod' && 'vorprod/' || '' }}
+  HEGER_PREFIX: ${{ github.ref_name != 'prod' && 'vorprod/' || '' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Seite prüfen (alben.json, Webfassungen vorhanden, keine Metadaten)
+        run: node seite-pruefen.mjs
+
+      - name: Veröffentlichte Version ins Webverzeichnis schreiben
+        run: |
+          node --input-type=module -e '
+            import { writeFileSync } from "node:fs";
+            const commit = process.env.GITHUB_SHA;
+            if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error("GITHUB_SHA fehlt oder ist ungültig");
+            writeFileSync("seite/version.json", JSON.stringify({ commit, deployed_at: new Date().toISOString() }, null, 2) + "\n");
+          '
+
+      - name: lftp installieren
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
+      - name: Zugang prüfen
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          if [ -z "$FTP_SERVER" ] || [ -z "$FTP_USERNAME" ] || [ -z "$FTP_PASSWORD" ]; then
+            echo "::error::Secrets FTP_SERVER, FTP_USERNAME und FTP_PASSWORD fehlen im Repo – nichts hochgeladen."; exit 1; fi
+
+      - name: Vorprod vor Suchmaschinen verbergen (E-035)
+        if: env.PREFIX == 'vorprod/'
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PORT: ${{ vars.FTP_PORT || '21' }}
+          FTP_WEBROOT: ${{ vars.FTP_WEBROOT || 'www/' }}
+        run: |
+          set -euo pipefail
+          printf '<IfModule mod_headers.c>\n  Header set X-Robots-Tag "noindex, nofollow"\n</IfModule>\n' > "$RUNNER_TEMP/vorprod.htaccess"
+          printf 'User-agent: *\nDisallow: /\n' > "$RUNNER_TEMP/robots.txt"
+          server=$(echo "$FTP_SERVER" | tr -d '[:space:]')
+          lftp -c "set ftp:ssl-force true; set ftp:ssl-protect-data true; set ftp:passive-mode true; \
+            set net:max-retries 3; set net:timeout 30; \
+            open --env-password -u $FTP_USERNAME -p $FTP_PORT $server; \
+            mkdir -p -f ${FTP_WEBROOT}vorprod; put $RUNNER_TEMP/vorprod.htaccess -o ${FTP_WEBROOT}vorprod/.htaccess; \
+            put $RUNNER_TEMP/robots.txt -o ${FTP_WEBROOT}vorprod/robots.txt; bye"
+
+      - name: Hochladen (FTPS)
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PORT: ${{ vars.FTP_PORT || '21' }}
+          FTP_WEBROOT: ${{ vars.FTP_WEBROOT || 'www/' }}
+        run: |
+          set -euo pipefail
+          server=$(echo "$FTP_SERVER" | tr -d '[:space:]')
+          ziel="${FTP_WEBROOT}${PREFIX}${SITE}"
+          # Fotos: nur neue oder in der Größe geänderte Dateien (im frischen Checkout sind alle Zeitstempel neu).
+          # Danach die kleinen Seitendateien immer vollständig.
+          lftp -c "set ftp:ssl-force true; set ftp:ssl-protect-data true; set ftp:passive-mode true; \
+            set net:max-retries 3; set net:timeout 30; \
+            open --env-password -u $FTP_USERNAME -p $FTP_PORT $server; \
+            mkdir -p -f $ziel/alben; \
+            mirror --reverse --ignore-time --no-perms --parallel=4 seite/alben/ $ziel/alben/; \
+            mirror --reverse --verbose --no-perms --exclude ^alben/ seite/ $ziel/; bye"
+
+      - name: Prüfen, ob die Seite erreichbar ist
+        run: |
+          sleep 3
+          node deploy-pruefen.mjs seite
+          node deploy-pruefen.mjs version "$GITHUB_SHA"

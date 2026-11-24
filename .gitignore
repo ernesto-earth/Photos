@@ -1,0 +1,8 @@
+# Originale bleiben nur lokal (1,6 GB); ins Repo kommen nur die Webfassungen unter seite/alben/.
+Bilder/
+.DS_Store
+*.webloc
+__pycache__/
+.hermes.md
+push.err
+merge.err
